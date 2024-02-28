@@ -1,19 +1,20 @@
 FROM --platform=$BUILDPLATFORM python:3.10-alpine AS builder
 EXPOSE 8000
 WORKDIR /app
-# Install system dependencies
-RUN apk update
-RUN apk add \
-    pkgconfig \
-    gcc \
-    musl-dev \
-    bash \
-# Install any needed packages specified in requirements.txt
-COPY requirements.txt /app
-RUN pip install --no-cache-dir -r requirements.txt
+ENV PYTHONUNBUFFERED=true
+WORKDIR /code
+FROM python as poetry
+ENV POETRY_HOME=/opt/poetry
+ENV PATH="$POETRY_HOME/bin:$PATH"
+RUN apt-get install gcc curl make automake g++\
+      && curl -sSL https://install.python-poetry.org | python3 - \
+      && apt-get clean -y curl
 
-# Copy the current directory contents into the container at /usr/src/app
-COPY . /app
+COPY pyproject.toml .
+COPY poetry.lock .
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi -vvv
+FROM poetry as runtime
 # Run server
 ENTRYPOINT [ "python3"]
 CMD ["manage.py", "runserver", "0.0.0.0:8000"]
